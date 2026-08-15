@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hardened Under Fire — Jason Khoo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
+<style>
+:root{
+  --void:#07090a;
+  --panel:#0e1310;
+  --panel-2:#121812;
+  --line:#1f2921;
+  --line-soft:#161d18;
+  --text:#eef2ee;
+  --text-dim:#8a9c8f;
+  --text-mute:#4c5a50;
+  --vuln:#ff5c5c;
+  --vuln-soft:rgba(255,92,92,.12);
+  --safe:#3ddc84;
+  --safe-soft:rgba(61,220,132,.12);
+  --info:#4fd1ff;
+  --info-soft:rgba(79,209,255,.12);
+  --warn:#ffb454;
+  --warn-soft:rgba(255,180,84,.12);
+  --r:10px;
+  --maxw:1120px;
+  --disp:'JetBrains Mono',monospace;
+  --body:'Inter',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} *{animation-duration:.01ms !important;transition-duration:.01ms !important} }
+body{
+  background:
+    radial-gradient(1000px 480px at 8% -8%, rgba(255,92,92,.06), transparent 55%),
+    radial-gradient(1000px 520px at 100% 8%, rgba(61,220,132,.07), transparent 55%),
+    var(--void);
+  color:var(--text); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+.bg-grid{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size:56px 56px;
+  mask-image:radial-gradient(1200px 800px at 50% 0%, #000 10%, transparent 75%);
+}
+h1,h2,h3,h4{font-family:var(--disp);font-weight:700;letter-spacing:-.01em;color:var(--text)}
+.eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-mute);display:flex;align-items:center;gap:.5em;margin-bottom:1rem}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--safe);box-shadow:0 0 10px var(--safe)}
+.eyebrow.rot::before{background:var(--vuln);box-shadow:0 0 10px var(--vuln)}
+.mono{font-family:var(--mono)}
+a{color:inherit}
+
+main{position:relative;z-index:1}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+section{padding:112px 0}
+.section-head{max-width:660px;margin-bottom:52px}
+.section-head h2{font-size:clamp(1.6rem,3.2vw,2.3rem);line-height:1.18;margin-bottom:14px}
+.section-head p{color:var(--text-dim);font-size:1.02rem}
+
+.progress{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--vuln),var(--warn),var(--safe));z-index:100;width:0%}
+nav.rail{position:fixed;top:22px;left:50%;transform:translateX(-50%);z-index:90;display:flex;gap:2px;background:rgba(14,19,16,.75);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:999px;padding:5px}
+nav.rail button{font-family:var(--mono);font-size:.66rem;letter-spacing:.04em;color:var(--text-mute);background:none;border:none;padding:8px 12px;border-radius:999px;cursor:pointer;transition:.25s;white-space:nowrap}
+nav.rail button:hover{color:var(--text)}
+nav.rail button.active{color:var(--void);background:var(--text)}
+@media (max-width:960px){ nav.rail{display:none} }
+
+/* ===== HERO ===== */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:150px 0 70px}
+.boot{font-family:var(--mono);font-size:.86rem;color:var(--safe);min-height:1.4em;margin-bottom:22px}
+.boot .cursor{display:inline-block;width:8px;height:1em;background:var(--safe);margin-left:2px;vertical-align:middle;animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+.hero h1{font-size:clamp(2.3rem,5.6vw,4.4rem);line-height:1.05;max-width:900px}
+.hero h1 .r{color:var(--vuln)} .hero h1 .g{color:var(--safe)}
+.hero-sub{margin-top:24px;font-size:1.14rem;color:var(--text-dim);max-width:600px}
+.hero-meta{margin-top:40px;display:flex;gap:34px;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem;color:var(--text-mute)}
+.hero-meta strong{color:var(--text);display:block;font-family:var(--body);font-weight:600;font-size:.94rem}
+
+.stat-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:44px}
+.stat-strip div{background:var(--panel);padding:20px 18px}
+.stat-strip .num{font-family:var(--disp);font-size:1.7rem}
+.stat-strip .num.r{color:var(--vuln)} .stat-strip .num.g{color:var(--safe)}
+.stat-strip .lbl{font-family:var(--mono);font-size:.66rem;color:var(--text-mute);margin-top:6px;letter-spacing:.02em}
+@media (max-width:900px){.stat-strip{grid-template-columns:repeat(2,1fr)}}
+
+/* ===== PANELS / TERMINAL ===== */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:26px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:900px){ .grid-3{grid-template-columns:1fr} .grid-2{grid-template-columns:1fr} }
+
+.term{background:#0b0f0c;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.term-bar{display:flex;align-items:center;gap:7px;padding:10px 14px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.term-bar i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.term-bar i:nth-child(1){background:#ff5f57} .term-bar i:nth-child(2){background:#febc2e} .term-bar i:nth-child(3){background:#28c840}
+.term-bar span{margin-left:8px;font-family:var(--mono);font-size:.7rem;color:var(--text-mute)}
+.term pre{padding:16px 18px;font-family:var(--mono);font-size:.78rem;line-height:1.7;color:var(--text-dim);overflow-x:auto;white-space:pre-wrap}
+.term pre .r{color:var(--vuln)} .term pre .g{color:var(--safe)} .term pre .y{color:var(--warn)} .term pre .c{color:var(--info)} .term pre .w{color:var(--text)}
+
+/* ===== D3FEND BADGES ===== */
+.badge-grid{display:flex;flex-wrap:wrap;gap:10px}
+.badge{font-family:var(--mono);font-size:.72rem;padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text-dim)}
+.badge b{color:var(--info)}
+
+/* ===== TOPOLOGY ===== */
+.topo{display:flex;align-items:center;justify-content:center;gap:0;padding:30px 10px;flex-wrap:wrap}
+.node{background:var(--panel-2);border:1.5px solid var(--line);border-radius:var(--r);padding:22px 26px;text-align:center;min-width:180px}
+.node.atk{border-color:var(--vuln)} .node.tgt{border-color:var(--warn)}
+.node .role{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-mute)}
+.node .name{font-family:var(--disp);font-size:1.15rem;margin:6px 0 4px}
+.node .ip{font-family:var(--mono);font-size:.8rem;color:var(--info)}
+.wire{flex:1;min-width:60px;max-width:120px;height:2px;background:repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 11px);position:relative}
+.wire .lbl{position:absolute;top:-28px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.62rem;color:var(--text-mute);white-space:nowrap}
+
+/* ===== TABLES ===== */
+.vtable{width:100%;border-collapse:collapse;font-size:.88rem}
+.vtable th{text-align:left;font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-mute);padding:10px 14px;border-bottom:1px solid var(--line)}
+.vtable td{padding:14px;border-bottom:1px solid var(--line-soft);color:var(--text-dim);vertical-align:top}
+.vtable tr:last-child td{border-bottom:none}
+.pill{display:inline-block;font-family:var(--mono);font-size:.68rem;padding:4px 10px;border-radius:999px;letter-spacing:.03em}
+.pill.crit{background:var(--vuln-soft);color:var(--vuln)}
+.pill.high{background:var(--warn-soft);color:var(--warn)}
+.pill.med{background:var(--info-soft);color:var(--info)}
+
+/* ===== ROADMAP ===== */
+.roadmap{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative}
+@media (max-width:900px){.roadmap{grid-template-columns:1fr}}
+.phase{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--text-mute);border-radius:var(--r);padding:24px}
+.phase.p1{border-top-color:var(--vuln)} .phase.p2{border-top-color:var(--warn)} .phase.p3{border-top-color:var(--safe)}
+.phase .num{font-family:var(--disp);font-size:.72rem;color:var(--text-mute);letter-spacing:.1em}
+.phase h3{font-size:1.02rem;margin:8px 0 10px}
+.phase p{font-size:.86rem;color:var(--text-dim);margin-bottom:12px}
+.phase ul{list-style:none}
+.phase li{font-family:var(--mono);font-size:.74rem;color:var(--text-dim);padding:6px 0;border-top:1px solid var(--line-soft)}
+.phase li:first-child{border-top:none}
+
+/* ===== GAUGES ===== */
+.gauge-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:700px){.gauge-row{grid-template-columns:1fr}}
+.gauge{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:24px}
+.gauge .lbl{font-family:var(--mono);font-size:.7rem;color:var(--text-mute);letter-spacing:.05em;text-transform:uppercase}
+.gauge .val{font-family:var(--disp);font-size:2.4rem;margin:8px 0 12px}
+.gauge.before .val{color:var(--vuln)} .gauge.after .val{color:var(--safe)}
+.gbar{height:10px;border-radius:6px;background:var(--panel-2);overflow:hidden}
+.gbar i{display:block;height:100%;border-radius:6px;transition:width 1.2s cubic-bezier(.16,1,.3,1);width:0}
+.gauge.before .gbar i{background:var(--vuln)} .gauge.after .gbar i{background:var(--safe)}
+
+/* ===== TIMELINE (attack sim) ===== */
+.tline{display:flex;flex-direction:column;gap:0}
+.tstep{display:flex;gap:16px;padding:16px 0;border-top:1px solid var(--line-soft)}
+.tstep:first-child{border-top:none}
+.tstep .idx{font-family:var(--disp);font-size:.8rem;color:var(--text-mute);min-width:26px}
+.tstep .body{flex:1}
+.tstep .title{font-family:var(--mono);font-size:.84rem;color:var(--text);margin-bottom:4px}
+.tstep .desc{font-size:.84rem;color:var(--text-dim)}
+.tstep .status{font-family:var(--mono);font-size:.68rem;padding:4px 10px;border-radius:999px;height:fit-content;white-space:nowrap}
+.tstep .status.deny{background:var(--warn-soft);color:var(--warn)}
+.tstep .status.block{background:var(--vuln-soft);color:var(--vuln)}
+.tstep .status.ok{background:var(--safe-soft);color:var(--safe)}
+
+/* ===== CHART CARD ===== */
+.chart-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:24px}
+.chart-card .chart-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+.chart-card h3{font-size:1.02rem}
+.chart-card .note{font-family:var(--mono);font-size:.7rem;color:var(--text-mute);margin-top:12px}
+canvas{max-width:100%}
+.legend-row{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:.72rem;color:var(--text-dim)}
+.legend-row span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.dot.r{background:var(--vuln)} .dot.g{background:var(--safe)} .dot.c{background:var(--info)} .dot.y{background:var(--warn)}
+
+/* ===== ASLR ===== */
+.hex-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.hex-chip{font-family:var(--mono);font-size:.78rem;padding:8px 12px;border:1px solid var(--line);border-radius:8px;color:var(--info);background:var(--panel-2)}
+
+/* ===== CHALLENGES ===== */
+.chal-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:22px;transition:.3s}
+.chal-card:hover{border-color:var(--text-mute);transform:translateY(-3px)}
+.chal-card h4{font-size:.94rem;margin-bottom:8px;color:var(--info)}
+.chal-card p{font-size:.85rem;color:var(--text-dim)}
+
+/* ===== OUTLOOK ===== */
+.outlook{background:linear-gradient(160deg, var(--panel) 0%, var(--panel-2) 100%);border:1px solid var(--line);border-radius:var(--r);padding:44px}
+.outlook h2{font-size:clamp(1.4rem,2.8vw,1.9rem);margin-bottom:18px;max-width:740px}
+.outlook p{color:var(--text-dim);max-width:740px;margin-bottom:14px}
+
+/* ===== FOOTER ===== */
+footer{padding:76px 0 56px;border-top:1px solid var(--line);margin-top:36px}
+.footer-grid{display:flex;justify-content:space-between;gap:36px;flex-wrap:wrap;margin-bottom:36px}
+.footer-grid h3{font-size:1.05rem;margin-bottom:10px}
+.footer-grid p{color:var(--text-dim);font-size:.9rem;max-width:420px}
+.footer-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.footer-links a{font-family:var(--mono);font-size:.72rem;color:var(--text-dim);border:1px solid var(--line);padding:8px 14px;border-radius:999px;text-decoration:none;transition:.2s}
+.footer-links a:hover{border-color:var(--safe);color:var(--text)}
+details{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:20px 24px}
+details summary{cursor:pointer;font-family:var(--mono);font-size:.78rem;color:var(--text-dim)}
+details[open] summary{margin-bottom:14px}
+.refs{font-family:var(--mono);font-size:.72rem;color:var(--text-mute);line-height:2}
+.copyright{margin-top:32px;font-family:var(--mono);font-size:.7rem;color:var(--text-mute);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+.reveal{opacity:0;transform:translateY(20px);transition:opacity .7s ease, transform .7s ease}
+.reveal.in{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <button data-target="hero" class="active">Hero</button>
+  <button data-target="lab">Lab</button>
+  <button data-target="recon">Recon</button>
+  <button data-target="priority">Priority</button>
+  <button data-target="strategy">Strategy</button>
+  <button data-target="hardening">Results</button>
+  <button data-target="verify">Verify</button>
+  <button data-target="learnings">Learnings</button>
+  <button data-target="outlook">Outlook</button>
+</nav>
+
+<main>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" id="hero">
+    <div class="wrap">
+      <div class="boot"><span id="bootText"></span><span class="cursor"></span></div>
+      <h1>Hardened <span class="r">Under Fire</span><br>Verified <span class="g">Under Test</span></h1>
+      <p class="hero-sub">A risk-based penetration test and system-hardening exercise against Metasploitable 2 — mapping every fix to the MITRE D3FEND framework, then proving each one holds under simulated attack.</p>
+
+      <div class="hero-meta">
+        <div><strong>Jason Khoo</strong>Author &amp; Analyst</div>
+        <div><strong>G2405638F</strong>Candidate ID</div>
+        <div><strong>IN6230 · Info Systems Security</strong>Nanyang Technological University</div>
+        <div><strong>Semester 1, AY25/26</strong>MSc in Information Systems (MSIS) Programme</div>
+      </div>
+
+      <div class="stat-strip">
+        <div><div class="num r">30</div><div class="lbl">OPEN TCP PORTS, PRE-HARDENING</div></div>
+        <div><div class="num r">3</div><div class="lbl">UNAUTHENTICATED RCE BACKDOORS FOUND</div></div>
+        <div><div class="num g">63→66</div><div class="lbl">LYNIS HARDENING INDEX</div></div>
+        <div><div class="num g">3</div><div class="lbl">PHASED HARDENING WAVES</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== LAB ===== -->
+  <section id="lab">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">01 — Lab Environment</div>
+        <h2>An isolated range, built to fail safely</h2>
+        <p>Metasploitable 2 (an intentionally vulnerable, End-of-Life Ubuntu 8.04 build) and Kali Linux were deployed in Oracle VM VirtualBox on a private Host-only network — sealed off from the host and the internet, with a NAT network switched in only for brief, controlled package downloads.</p>
+      </div>
+
+      <div class="panel reveal">
+        <div class="topo">
+          <div class="node atk">
+            <div class="role">Attacker</div>
+            <div class="name">Kali Linux</div>
+            <div class="ip">192.168.56.102</div>
+          </div>
+          <div class="wire"><div class="lbl">host-only · 192.168.56.0/24</div></div>
+          <div class="node tgt">
+            <div class="role">Target · EOL Ubuntu 8.04</div>
+            <div class="name">Metasploitable 2</div>
+            <div class="ip">192.168.56.101</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-3 reveal" style="margin-top:18px">
+        <div class="panel"><div class="eyebrow" style="margin-bottom:8px">Platform</div><p style="font-size:.88rem;color:var(--text-dim)">Oracle VM VirtualBox 7.2.0 on a Windows host, after macOS/M1 compatibility issues forced a platform migration.</p></div>
+        <div class="panel"><div class="eyebrow" style="margin-bottom:8px">Network Isolation</div><p style="font-size:.88rem;color:var(--text-dim)">Host-only Adapter for all attacker↔target traffic; a separate NAT Network used only for temporary package downloads.</p></div>
+        <div class="panel"><div class="eyebrow" style="margin-bottom:8px">Target OS Risk</div><p style="font-size:.88rem;color:var(--text-dim)">Ubuntu 8.04 "Hardy Heron" — End-of-Life and unsupported, meaning conventional patching alone could not close most gaps.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== RECON ===== -->
+  <section id="recon">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow rot">02 — Reconnaissance &amp; Vulnerability Assessment</div>
+        <h2>Nmap and Lynis built the baseline — and it was ugly</h2>
+        <p>An external Nmap sweep and an internal Lynis configuration audit together exposed a critically vulnerable system before a single fix was applied.</p>
+      </div>
+
+      <div class="grid-2 reveal">
+        <div class="term">
+          <div class="term-bar"><i></i><i></i><i></i><span>kali@kali — nmap</span></div>
+          <pre><span class="w">$ sudo nmap --script vuln 192.168.56.101</span>
+<span class="r">21/tcp   open  ftp     vsftpd 2.3.4  [VULNERABLE — backdoor, CVE-2011-2523]</span>
+<span class="r">1524/tcp open  bindshell  Metasploitable root shell [unauthenticated]</span>
+<span class="r">6667/tcp open  irc     UnrealIRCd  [trojaned backdoor]</span>
+<span class="y">23/tcp   open  telnet  Linux telnetd  [cleartext credentials]</span>
+<span class="y">139,445/tcp open  netbios-ssn/microsoft-ds  [Samba, high-risk]</span>
+<span class="text-dim">...30 open TCP ports total</span></pre>
+        </div>
+        <div class="term">
+          <div class="term-bar"><i></i><i></i><i></i><span>msfadmin@metasploitable — lynis</span></div>
+          <pre><span class="w">$ sudo ./lynis audit system</span>
+<span class="r">[FIRE-4512] iptables loaded, but no rules active</span>
+<span class="r">[AUTH-9229] poor password hashing found: md5crypt</span>
+<span class="r">[AUTH-9262] no PAM modules for password strength found</span>
+<span class="r">[AUTH-9286] password aging limits are not configured</span>
+<span class="w">Hardening index : [63] [############        ]</span></pre>
+        </div>
+      </div>
+
+      <div class="panel reveal" style="margin-top:18px">
+        <h3 style="font-size:1rem;margin-bottom:16px">Key findings summary</h3>
+        <table class="vtable">
+          <tr><th>Category</th><th>Finding</th><th>Severity</th></tr>
+          <tr><td>Critical Backdoors &amp; RCE</td><td>vsftpd 2.3.4 (port 21), unauthenticated root bindshell (port 1524), trojaned UnrealIRCd (port 6667) — each grants immediate, unauthenticated root or shell access</td><td><span class="pill crit">Critical</span></td></tr>
+          <tr><td>Insecure Services</td><td>Telnet, r-services, and Samba running in cleartext with no encryption</td><td><span class="pill high">High</span></td></tr>
+          <tr><td>Inactive Firewall</td><td>iptables loaded but with zero active rules — a default-accept posture</td><td><span class="pill high">High</span></td></tr>
+          <tr><td>Weak Credentials</td><td>Default passwords across all accounts; MD5 hashing; no complexity or aging policy</td><td><span class="pill high">High</span></td></tr>
+          <tr><td>Permissive SSH</td><td>Direct root login enabled over SSH</td><td><span class="pill med">Medium</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PRIORITY ===== -->
+  <section id="priority">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">03 — Risk-Based Prioritisation</div>
+        <h2>Not every finding gets fixed first</h2>
+        <p>Each vulnerability was scored on likelihood and impact to sequence the response — publicly known, unauthenticated remote-code-execution paths took absolute priority.</p>
+      </div>
+
+      <div class="chart-card reveal">
+        <div class="chart-head">
+          <div><h3>Likelihood × Impact matrix</h3><div class="eyebrow" style="margin:6px 0 0">Bubble size = priority weight</div></div>
+          <div class="legend-row">
+            <span><i class="dot r"></i>Critical</span>
+            <span><i class="dot y"></i>High</span>
+            <span><i class="dot c"></i>Medium</span>
+          </div>
+        </div>
+        <canvas id="priorityChart" height="220"></canvas>
+        <div class="note">Axes: 1 = Low, 2 = Medium, 3 = High. Author's risk synthesis from the Section 3.3 prioritisation matrix.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== STRATEGY ===== -->
+  <section id="strategy">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">04 — Hardening Strategy</div>
+        <h2>Three phases, mapped to MITRE D3FEND</h2>
+        <p>Every action ties to a defensive technique in the D3FEND framework — from immediate containment through to OS-level exploit mitigation.</p>
+      </div>
+
+      <div class="roadmap reveal">
+        <div class="phase p1">
+          <div class="num">PHASE 01</div>
+          <h3>Immediate Containment</h3>
+          <p>Eliminate any active backdoor offering a direct, unauthenticated path to root.</p>
+          <ul>
+            <li>Stop &amp; purge vsftpd, UnrealIRCd, Telnet</li>
+            <li>Remove services from boot sequence</li>
+            <li class="mono" style="color:var(--vuln)">D3-ACH</li>
+          </ul>
+        </div>
+        <div class="phase p2">
+          <div class="num">PHASE 02</div>
+          <h3>Secure Baseline</h3>
+          <p>Establish foundational controls across the network and credential layers.</p>
+          <ul>
+            <li>Default-deny iptables firewall</li>
+            <li>Password complexity &amp; aging policy</li>
+            <li class="mono" style="color:var(--warn)">D3-SCP · D3-SPP · D3-CFP</li>
+          </ul>
+        </div>
+        <div class="phase p3">
+          <div class="num">PHASE 03</div>
+          <h3>System &amp; Service Hardening</h3>
+          <p>Harden remaining essential services and system-level exploit resistance.</p>
+          <ul>
+            <li>SSH: disable root login, move port, Fail2Ban</li>
+            <li>Enable full ASLR (kernel.randomize_va_space=2)</li>
+            <li class="mono" style="color:var(--safe)">D3-ACH · D3-SAOR</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="badge-grid reveal" style="margin-top:20px">
+        <span class="badge"><b>D3-SU</b> Software Update</span>
+        <span class="badge"><b>D3-ACH</b> Application Config Hardening</span>
+        <span class="badge"><b>D3-SCP</b> System Config Permissions</span>
+        <span class="badge"><b>D3-SPP</b> Strong Password Policy</span>
+        <span class="badge"><b>D3-CFP</b> Change Default Password</span>
+        <span class="badge"><b>D3-SAOR</b> Segment Address Offset Randomisation</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== RESULTS ===== -->
+  <section id="hardening">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">05 — Before / After</div>
+        <h2>The attack surface, quantified</h2>
+        <p>The same Nmap and Lynis checks were re-run post-hardening. The improvement is visible at both the network layer and the configuration layer.</p>
+      </div>
+
+      <div class="chart-card reveal">
+        <div class="chart-head">
+          <div><h3>Port state: pre vs. post-hardening</h3><div class="eyebrow" style="margin:6px 0 0">1 = reachable · 0 = filtered by firewall</div></div>
+          <div class="legend-row"><span><i class="dot r"></i>Before</span><span><i class="dot g"></i>After</span></div>
+        </div>
+        <canvas id="portChart" height="200"></canvas>
+        <div class="note">SSH was deliberately relocated to port 2222 as part of hardening — hence it shows "after" activity there instead of port 22.</div>
+      </div>
+
+      <div class="gauge-row reveal" style="margin-top:18px">
+        <div class="gauge before">
+          <div class="lbl">Lynis Hardening Index · Before</div>
+          <div class="val">63<span style="font-size:1rem;color:var(--text-mute)">/100</span></div>
+          <div class="gbar"><i id="gaugeBefore" style="background:var(--vuln)"></i></div>
+        </div>
+        <div class="gauge after">
+          <div class="lbl">Lynis Hardening Index · After</div>
+          <div class="val">66<span style="font-size:1rem;color:var(--text-mute)">/100</span></div>
+          <div class="gbar"><i id="gaugeAfter" style="background:var(--safe)"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== VERIFY ===== -->
+  <section id="verify">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">06 — Adversarial Verification</div>
+        <h2>Controls don't count until they're attacked</h2>
+        <p>Beyond static config checks, active attack simulations from Kali confirmed the hardening held functionally — not just on paper.</p>
+      </div>
+
+      <div class="grid-2 reveal">
+        <div class="panel">
+          <h3 style="font-size:1rem;margin-bottom:14px">Simulated brute-force → Fail2Ban response</h3>
+          <div class="tline">
+            <div class="tstep"><div class="idx">01</div><div class="body"><div class="title">ssh ghostuser@target -p 2222</div><div class="desc">First failed login attempt — logged by the SSH daemon.</div></div><div class="status deny">Denied</div></div>
+            <div class="tstep"><div class="idx">02</div><div class="body"><div class="title">Second attempt</div><div class="desc">Second failed login — Fail2Ban's failure counter increments.</div></div><div class="status deny">Denied</div></div>
+            <div class="tstep"><div class="idx">03</div><div class="body"><div class="title">Third attempt</div><div class="desc">maxretry=3 threshold reached — Fail2Ban injects an iptables ban rule for the attacking IP.</div></div><div class="status block">Blocked</div></div>
+            <div class="tstep"><div class="idx">04</div><div class="body"><div class="title">Fourth attempt</div><div class="desc">Connection refused at the network layer — the attacker never reaches the SSH prompt.</div></div><div class="status block">Blocked</div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3 style="font-size:1rem;margin-bottom:14px">Default-credential &amp; dictionary attack (Medusa)</h3>
+          <div class="term" style="margin-bottom:14px">
+            <div class="term-bar"><i></i><i></i><i></i><span>kali@kali — medusa</span></div>
+            <pre><span class="w">$ medusa -h 192.168.56.101 -u msfadmin -P rockyou.txt -M ssh -n 2222</span>
+<span class="r">ERROR: Cannot connect [unreachable]</span>
+<span class="w">$ medusa -h 192.168.56.101 -u postgres -p postgres -M postgres -n 5432</span>
+<span class="r">NOTICE: port 5432 was not open</span></pre>
+          </div>
+          <p style="font-size:.85rem;color:var(--text-dim)">Default credentials on SSH, PostgreSQL and MySQL all failed — the changed passwords held, and the default-deny firewall blocked the database ports outright before credentials were even tested.</p>
+        </div>
+      </div>
+
+      <div class="panel reveal" style="margin-top:18px">
+        <h3 style="font-size:1rem;margin-bottom:10px">ASLR runtime verification</h3>
+        <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:6px">A custom C program printed a stack variable's memory address across three consecutive executions post-hardening — each run returned a different address, confirming <span class="mono" style="color:var(--info)">kernel.randomize_va_space = 2</span> is actively randomising memory layout at runtime.</p>
+        <div class="hex-row">
+          <span class="hex-chip">Run 1 — 0xbf954eb0</span>
+          <span class="hex-chip">Run 2 — 0xbf828d80</span>
+          <span class="hex-chip">Run 3 — 0xbfaa5000</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== LEARNINGS ===== -->
+  <section id="learnings">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">07 — Challenges &amp; Learning Points</div>
+        <h2>Hardening a dead OS teaches you where real defense lives</h2>
+        <p>Patching alone proved insufficient — the real work was in compensating controls.</p>
+      </div>
+
+      <div class="grid-3 reveal">
+        <div class="chal-card">
+          <h4>Patching hit a wall</h4>
+          <p>The old-releases archive provided almost no meaningful security updates for an EOL OS — confirming that service removal, firewalling and credential hardening had to carry the defense, not patches.</p>
+        </div>
+        <div class="chal-card">
+          <h4>SSH algorithm mismatch</h4>
+          <p>Modern clients refuse the target's legacy ssh-rsa/ssh-dss host keys by default — every verification step needed an explicit client-side override to even connect.</p>
+        </div>
+        <div class="chal-card">
+          <h4>Lynis false positive</h4>
+          <p>Lynis misread a populated iptables ruleset as empty on this legacy build — a reminder to corroborate automated audit output with direct <span class="mono">iptables -L</span> checks.</p>
+        </div>
+        <div class="chal-card">
+          <h4>Aging didn't apply retroactively</h4>
+          <p>Global password-aging settings in <span class="mono">/etc/login.defs</span> only bound new accounts — existing users needed explicit <span class="mono">chage</span> enforcement.</p>
+        </div>
+        <div class="chal-card">
+          <h4>Silent PAM failure</h4>
+          <p>A single misplaced line in <span class="mono">common-password</span> caused passwd to report success while silently not saving the new hash — only caught during verification.</p>
+        </div>
+        <div class="chal-card">
+          <h4>Snapshots as a safety net</h4>
+          <p>VirtualBox snapshots turned risky, irreversible-feeling changes into a fast "implement → verify → restore" loop on a fragile legacy system.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== OUTLOOK ===== -->
+  <section id="outlook">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">08 — Conclusion</div>
+        <h2>A robust baseline — not a finish line</h2>
+      </div>
+      <div class="outlook reveal">
+        <h2>Compensating controls carried the defense</h2>
+        <p>Layered hardening under the MITRE D3FEND framework closed every publicly known backdoor, stood up a default-deny firewall, remediated credential weaknesses, and enabled full memory-layout randomisation — each independently verified through adversarial testing, not just configuration review.</p>
+        <p>A production equivalent of this system would still need migration off an End-of-Life OS, continuous monitoring, and application-layer remediation (e.g. the web services) to reach comprehensive, long-term security.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer>
+    <div class="wrap">
+      <div class="footer-grid reveal">
+        <div>
+          <h3>About this analysis</h3>
+          <p>Originally submitted as Assignment 1 for IN6230 Information Systems Security at Nanyang Technological University, and adapted here as an interactive portfolio piece demonstrating risk analysis, security tooling, and technical storytelling for data science &amp; data engineering roles.</p>
+          <div class="footer-links">
+            <a href="mailto:jkhooyh@gmail.com">jkhooyh@gmail.com</a>
+            <a href="https://www.linkedin.com/in/jasonkhooyh/">LinkedIn</a>
+            <a href="https://github.com/jasonkyh">GitHub</a>
+          </div>
+        </div>
+        <div style="min-width:260px;flex:1;max-width:420px">
+          <details>
+            <summary>▸ Sources &amp; references</summary>
+            <div class="refs">
+              Finio, M. &amp; Downie, A. (2024). What is a cybersecurity risk assessment? IBM.<br>
+              Jonker, A., Lindemulder, G. &amp; Kosinski, M. (2025). What is Cybersecurity? IBM.<br>
+              Oak Academy (2025). Metasploit Framework: Penetration Testing with Metasploit. Udemy.<br>
+              Rapid7 (n.d.). Metasploitable 2 Exploitability Guide.<br>
+              Schrader, D. (2023). What Is System Hardening? Netwrix.<br>
+              MITRE (n.d.). D3FEND Matrix — d3fend.mitre.org
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="copyright">
+        <span>© 2026 Jason Khoo — Prepared for IN6230, Nanyang Technological University</span>
+        <span>Built with HTML, CSS &amp; Chart.js</span>
+      </div>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+/* ===== BOOT TYPEWRITER ===== */
+const bootLines = ["[+] Initialising isolated lab range...", "[+] Target acquired: 192.168.56.101", "[!] 3 unauthenticated RCE paths detected", "[+] Applying D3FEND-mapped hardening..."];
+const bootEl = document.getElementById('bootText');
+let li=0, ci=0;
+function typeBoot(){
+  if(li >= bootLines.length){ setTimeout(()=>{ bootEl.textContent=''; li=0; ci=0; typeBoot(); }, 1800); return; }
+  const line = bootLines[li];
+  if(ci <= line.length){ bootEl.textContent = line.slice(0,ci); ci++; setTimeout(typeBoot, 28); }
+  else { setTimeout(()=>{ ci=0; li++; typeBoot(); }, 650); }
+}
+typeBoot();
+
+/* ===== SCROLL PROGRESS + NAV ===== */
+const progress = document.getElementById('progress');
+const sections = [...document.querySelectorAll('main section')];
+const railBtns = [...document.querySelectorAll('nav.rail button')];
+function onScroll(){
+  const h = document.documentElement;
+  progress.style.width = (h.scrollTop/(h.scrollHeight-h.clientHeight)*100) + '%';
+  let current = sections[0].id;
+  for(const s of sections){ if(s.getBoundingClientRect().top <= 140) current = s.id; }
+  railBtns.forEach(b => b.classList.toggle('active', b.dataset.target === current));
+}
+document.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+railBtns.forEach(b => b.addEventListener('click', () => document.getElementById(b.dataset.target).scrollIntoView({behavior:'smooth'})));
+
+/* ===== REVEAL ===== */
+const io = new IntersectionObserver((entries) => entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('in'); }), {threshold:.14});
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* ===== GAUGE BARS ===== */
+const gaugeIo = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      document.getElementById('gaugeBefore').style.width = '63%';
+      document.getElementById('gaugeAfter').style.width = '66%';
+      gaugeIo.disconnect();
+    }
+  });
+}, {threshold:.4});
+gaugeIo.observe(document.querySelector('.gauge-row'));
+
+/* ===== CHART.JS ===== */
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#8a9c8f';
+const gridColor = 'rgba(255,255,255,.06)';
+const VULN='#ff5c5c', SAFE='#3ddc84', INFO='#4fd1ff', WARN='#ffb454';
+
+/* Priority bubble chart */
+const priorityPoints = [
+  {x:3,y:3,r:26,c:VULN,label:'Service Backdoors (FTP/IRC/Bindshell)'},
+  {x:3,y:3,r:20,c:WARN,label:'Inactive Firewall'},
+  {x:3,y:3,r:20,c:WARN,label:'Weak Authentication Policies'},
+  {x:3,y:2,r:18,c:WARN,label:'Insecure & Unnecessary Services'},
+  {x:2,y:3,r:14,c:INFO,label:'Permissive SSH Configuration'}
+];
+new Chart(document.getElementById('priorityChart'), {
+  type:'bubble',
+  data:{ datasets: priorityPoints.map(p => ({ label:p.label, data:[{x:p.x,y:p.y,r:p.r}], backgroundColor: p.c+'55', borderColor:p.c, borderWidth:2 })) },
+  options:{
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: (ctx) => ctx.dataset.label } } },
+    scales:{
+      x:{ min:0.5, max:3.5, ticks:{ stepSize:1, callback:v=>({1:'Low',2:'Medium',3:'High'})[v]||'' }, title:{display:true,text:'Likelihood',color:'#8a9c8f'}, grid:{color:gridColor} },
+      y:{ min:0.5, max:3.5, ticks:{ stepSize:1, callback:v=>({1:'Low',2:'Medium',3:'High'})[v]||'' }, title:{display:true,text:'Impact',color:'#8a9c8f'}, grid:{color:gridColor} }
+    }
+  }
+});
+
+/* Port state before/after */
+new Chart(document.getElementById('portChart'), {
+  type:'bar',
+  data:{
+    labels:['FTP (21)','SSH (22→2222)','Telnet (23)','SMB (139/445)','Bindshell (1524)','IRC (6667/6697)'],
+    datasets:[
+      {label:'Before', data:[1,1,1,1,1,1], backgroundColor:VULN, borderRadius:4},
+      {label:'After', data:[0,1,0,0,0,0], backgroundColor:SAFE, borderRadius:4}
+    ]
+  },
+  options:{
+    plugins:{ legend:{display:false} },
+    scales:{
+      y:{ min:0, max:1.2, ticks:{ stepSize:1, callback:v=> v===1?'Open':(v===0?'Filtered':'') }, grid:{color:gridColor} },
+      x:{ grid:{display:false} }
+    }
+  }
+});
+</script>
+</body>
+</html>
